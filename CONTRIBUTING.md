@@ -48,6 +48,16 @@ If you want to help build a new component, create a
 Add any design docs, code samples, reference implementations in draft PRs, and
 get community feedback.
 
+### Material Web Community guidelines
+We have created this project to be a community-driven effort to maintain and improve the M3 web components. We encourage contributions from anyone who wants to help.
+Every change must be pushed to a separate branch (checked out from the `main` branch), and we will review it before merging it into the `main-fork` branch (the main branch of this fork). This way, we can keep track of all the changes made by the community and ensure that they are compatible with the original repo.
+Then that braanch can be used to create a PR to the original repo (M3 web) if needed and `main-fork` can be used to publish new versions of the components to npm faster.
+This way we are covered in both cases:
+- M3 web (original repo) will be maintained
+- M3 web will be discontinued/deprecated
+
+Name template for branches: `feat/<component-name>/<description>` or `fix/<component-name>/<description>` (or some other type of change). If your change is not related to a specific component, you can create a branch with a more general name like `feat/<description>` or `fix/<description>`.
+
 ### Contributor License Agreement
 
 Code contributions must
