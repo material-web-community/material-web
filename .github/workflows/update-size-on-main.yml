@@ -2,7 +2,7 @@ name: Update size
 
 on:
   push:
-    branches: main
+    branches: main-community
   workflow_dispatch:
     # allows triggering from the github UI
 jobs:
