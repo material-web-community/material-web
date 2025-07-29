@@ -1,5 +1,6 @@
 name: 🐛 Documentation Bug
 description: Report a bug that affects Material Web documentation (https://material-web.dev/)
+type: Bug
 
 body:
   - type: textarea
