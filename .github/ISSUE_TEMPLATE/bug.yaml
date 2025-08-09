@@ -1,5 +1,6 @@
 name: 🐛 Bug Report
 description: Report a bug that affects a Material Web component
+type: Bug
 
 body:
   - type: dropdown
