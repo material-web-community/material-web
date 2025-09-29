@@ -104,5 +104,9 @@ export * from './tabs/secondary-tab.js';
 export * from './tabs/tabs.js';
 export * from './textfield/filled-text-field.js';
 export * from './textfield/outlined-text-field.js';
+export * from './topappbar/center-aligned-top-app-bar.js';
+export * from './topappbar/large-top-app-bar.js';
+export * from './topappbar/medium-top-app-bar.js';
+export * from './topappbar/small-top-app-bar.js';
 // go/keep-sorted end
 // LINT.ThenChange(:imports)
