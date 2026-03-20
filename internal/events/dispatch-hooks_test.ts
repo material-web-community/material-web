@@ -39,6 +39,42 @@ describe('dispatch hooks', () => {
         .withContext('element.addEventListener')
         .toHaveBeenCalledTimes(3);
     });
+
+    it('triggers internal event listeners when a composed element is the source of the event', () => {
+      const shadowRoot = element.attachShadow({mode: 'open'});
+      const composedElement = document.createElement('button');
+      shadowRoot.appendChild(composedElement);
+      const innerClickListener = jasmine.createSpy('innerClickListener');
+      composedElement.addEventListener('click', innerClickListener);
+
+      setupDispatchHooks(element, 'click');
+      composedElement.click();
+
+      expect(innerClickListener)
+        .withContext('innerClickListener')
+        .toHaveBeenCalledTimes(1);
+    });
+
+    it('should not trigger activation behavior for clicks coming from inner <a> elements', () => {
+      const shadowRoot = element.attachShadow({mode: 'open'});
+      const anchorElement = document.createElement('a');
+      anchorElement.href = '#';
+      shadowRoot.appendChild(anchorElement);
+
+      setupDispatchHooks(element, 'click');
+
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      });
+
+      anchorElement.dispatchEvent(clickEvent);
+
+      expect(clickEvent.defaultPrevented)
+        .withContext('clickEvent.defaultPrevented')
+        .toBeTrue();
+    });
   });
 
   describe('afterDispatch()', () => {

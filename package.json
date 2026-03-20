@@ -31,6 +31,8 @@
     "build:catalog": "wireit",
     "build:scripts": "wireit",
     "update-docs": "wireit",
+    "update-docs:components": "wireit",
+    "update-docs:sass-ext": "wireit",
     "update-size": "wireit"
   },
   "customElement": "custom-elements.json",
@@ -67,6 +69,7 @@
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.4.4",
     "@types/jasmine": "^4.0.3",
+    "@types/node": "^24.10.1",
     "@web/test-runner": "^0.18.2",
     "@web/test-runner-playwright": "^0.11.0",
     "custom-element-jet-brains-integration": "^1.6.2",
@@ -146,6 +149,12 @@
       "clean": "if-file-deleted"
     },
     "update-docs": {
+      "dependencies": [
+        "update-docs:components",
+        "update-docs:sass-ext"
+      ]
+    },
+    "update-docs:components": {
       "command": "node scripts/analyzer/update-docs.js",
       "files": [
         "docs/components/*.md",
@@ -158,6 +167,19 @@
       ],
       "output": ["custom-elements.json", "web-types.json"],
       "dependencies": ["build:scripts"]
+    },
+    "update-docs:sass-ext": {
+      "command": "node scripts/update-sass-ext-docs.js --input=./sass/ext/ --output=./docs/sass/sass-ext.md",
+      "files": [
+        "docs/sass/sass-ext.md",
+        "sass/ext/_*.scss",
+        "!sass/ext/*_test.scss",
+        "scripts/update-sass-ext-docs.js"
+      ],
+      "output": [],
+      "dependencies": [
+        "build:scripts"
+      ]
     },
     "update-size": {
       "command": "node scripts/size/update-size.js",
