@@ -1,0 +1,141 @@
+# Automatically opens a PR to the upstream repository material-components/material-web
+# when a PR is merged into main-community in this fork.
+# Requirements: (recommended) secret UPSTREAM_TOKEN with public_repo (or repo) scope.
+# The triggering PR's head branch MUST be based off 'main' (not another feature branch) or it will be skipped.
+
+name: Mirror merged PR upstream
+
+on:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: mirror-upstream-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-upstream-pr:
+    if: >-
+      ${{ github.event.pull_request.merged == true &&
+          github.event.pull_request.base.ref == 'main-community' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.repository != 'material-components/material-web' }}
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM_REPO: material-components/material-web
+      SKIP_LABEL: no-upstream
+      BASE_TARGET: main
+      REQUIRED_ANCESTOR: main
+      # Fallback: if UPSTREAM_TOKEN is set and not empty use it, otherwise default to GITHUB_TOKEN (may lack upstream permissions)
+      TOKEN: ${{ secrets.UPSTREAM_TOKEN != '' && secrets.UPSTREAM_TOKEN || secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Check skip label
+        id: check_label
+        run: |
+          labels='${{ toJson(github.event.pull_request.labels) }}'
+          echo "Labels: $labels"
+          if echo "$labels" | grep -q '"name":"'"$SKIP_LABEL"'"'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Stop if skip label present
+        if: steps.check_label.outputs.skip == 'true'
+        run: echo "Skip label present, abort upstream mirroring" && exit 0
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set branch variables
+        id: vars
+        run: |
+          echo "branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+          echo "head_sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          echo "author_login=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
+          echo "repo_full=${{ github.repository }}" >> $GITHUB_OUTPUT
+
+      - name: Verify branch is based on 'main'
+        id: verify_base
+        run: |
+          BRANCH='${{ steps.vars.outputs.branch }}'
+          echo "Verifying branch $BRANCH is based on REQUIRED_ANCESTOR=${REQUIRED_ANCESTOR}"
+          git fetch origin ${REQUIRED_ANCESTOR} --quiet
+          git fetch origin $BRANCH --quiet || true
+          # Ensure required ancestor is an ancestor of head SHA
+          if git merge-base --is-ancestor origin/${REQUIRED_ANCESTOR} ${{ steps.vars.outputs.head_sha }}; then
+            echo "Base verification passed"
+            echo "ok=true" >> $GITHUB_OUTPUT
+          else
+            echo "Branch is NOT based on origin/${REQUIRED_ANCESTOR}; skipping upstream PR";
+            echo "ok=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Stop if not based on main
+        if: steps.verify_base.outputs.ok != 'true'
+        run: echo "Branch not based on 'main'. Aborting." && exit 0
+
+      - name: Create (or skip) upstream PR
+        id: create_upstream_pr
+        env:
+          BRANCH: ${{ steps.vars.outputs.branch }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_FULL: ${{ steps.vars.outputs.repo_full }}
+          AUTHOR: ${{ steps.vars.outputs.author_login }}
+          UPSTREAM_REPO: ${{ env.UPSTREAM_REPO }}
+          BASE_TARGET: ${{ env.BASE_TARGET }}
+          TOKEN: ${{ env.TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Checking for existing open PR to $UPSTREAM_REPO with head $REPO_OWNER:$BRANCH"
+
+          export GH_TOKEN="$TOKEN"
+          existing=$(gh pr list -R "$UPSTREAM_REPO" --state open --head "$REPO_OWNER:$BRANCH" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            echo "An upstream PR already exists (#$existing). Exiting."; exit 0; fi
+
+          body_content=${PR_BODY:-"(No description provided in the source PR)"}
+          body_content+="\n\n(Automated upstream mirror of source PR ${REPO_FULL}#${PR_NUMBER} by @${AUTHOR})"
+          printf '%s\n' "$body_content" > body.md
+
+          echo "Creating PR on $UPSTREAM_REPO: base=$BASE_TARGET head=$REPO_OWNER:$BRANCH"
+          gh pr create -R "$UPSTREAM_REPO" \
+            --title "$PR_TITLE" \
+            --body-file body.md \
+            --base "$BASE_TARGET" \
+            --head "$REPO_OWNER:$BRANCH"
+
+          new_number=$(gh pr list -R "$UPSTREAM_REPO" --state open --head "$REPO_OWNER:$BRANCH" --json number --jq '.[0].number') || true
+          if [ -n "${new_number}" ]; then
+            upstream_url=$(gh pr view -R "$UPSTREAM_REPO" "${new_number}" --json url --jq '.url') || upstream_url=""
+            echo "Upstream PR created successfully (#${new_number}).";
+            echo "new_number=${new_number}" >> $GITHUB_OUTPUT
+            if [ -n "$upstream_url" ]; then
+              echo "upstream_url=${upstream_url}" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Upstream PR creation command finished but PR number could not be determined.";
+          fi
+
+      - name: Comment back on source PR with upstream link
+        if: ${{ steps.create_upstream_pr.outputs.new_number != '' }}
+        env:
+          GH_TOKEN: ${{ env.TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          UPSTREAM_REPO: ${{ env.UPSTREAM_REPO }}
+          UPSTREAM_PR_NUMBER: ${{ steps.create_upstream_pr.outputs.new_number }}
+          UPSTREAM_URL: ${{ steps.create_upstream_pr.outputs.upstream_url }}
+        run: |
+          set -euo pipefail
+          url_display=${UPSTREAM_URL:-"https://github.com/${UPSTREAM_REPO}/pull/${UPSTREAM_PR_NUMBER}"}
+          comment="Upstream PR opened: ${UPSTREAM_REPO}#${UPSTREAM_PR_NUMBER}\n${url_display}\n\n(This comment was added automatically)"
+          echo "Posting comment to source PR #${PR_NUMBER}:"; echo "$comment"
+          gh pr comment "$PR_NUMBER" --body "$comment"
+
