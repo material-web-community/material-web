@@ -149,10 +149,7 @@
       "clean": "if-file-deleted"
     },
     "update-docs": {
-      "dependencies": [
-        "update-docs:components",
-        "update-docs:sass-ext"
-      ]
+      "dependencies": ["update-docs:components", "update-docs:sass-ext"]
     },
     "update-docs:components": {
       "command": "node scripts/analyzer/update-docs.js",
@@ -177,9 +174,7 @@
         "scripts/update-sass-ext-docs.js"
       ],
       "output": [],
-      "dependencies": [
-        "build:scripts"
-      ]
+      "dependencies": ["build:scripts"]
     },
     "update-size": {
       "command": "node scripts/size/update-size.js",
